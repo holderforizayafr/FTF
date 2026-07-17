@@ -1,0 +1,1835 @@
+-- ========================= SILENT SET - FLEE THE FACILITY =========================
+-- WITH DISCORD LOGGING, LUNA-STYLE KEY SYSTEM UI, KILL DETECTION
+
+-- ========================= DISCORD LOGGING =========================
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1511071691961274620/CGS4xSLxb73rD0oljPWcfKppMsdgGdDUdweZHryfVV8-4fA-7jfNg8N3bVc-IMQ_d0pJ"
+local hasLogged = false
+
+local function sendExecutionLog()
+    if hasLogged then return end
+    hasLogged = true
+    local Players = game:GetService("Players")
+    local MarketplaceService = game:GetService("MarketplaceService")
+    local HttpService = game:GetService("HttpService")
+    local player = Players.LocalPlayer
+    local gameName = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId).Name end) and MarketplaceService:GetProductInfo(game.PlaceId).Name or tostring(game.PlaceId)
+    local data = {
+        username = "SILENT SET Logger",
+        embeds = {{
+            title = "Silent Set - Execution",
+            color = 0x5865F2,
+            fields = {
+                { name = "User", value = player.Name, inline = true },
+                { name = "User ID", value = tostring(player.UserId), inline = true },
+                { name = "Game", value = tostring(gameName), inline = true },
+                { name = "Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true },
+            },
+            footer = { text = "Silent Set Script" }
+        }}
+    }
+    pcall(function()
+        local req = (syn and syn.request) or (http and http.request) or request or (fluxus and fluxus.request)
+        if req then
+            req({Url = WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(data)})
+        end
+    end)
+end
+task.spawn(function() task.wait(2) sendExecutionLog() end)
+
+-- ========================= MODERN KEY SYSTEM (LUNA STYLE UI) =========================
+local validKey = ""
+local API_URL = "https://negative-unselfish-epilepsy.ngrok-free.dev/verify_key"
+
+local function isValidKey(keyToCheck)
+    if not keyToCheck or keyToCheck == "" then return false end
+    local HttpService = game:GetService("HttpService")
+    local player = game:GetService("Players").LocalPlayer
+    local url = API_URL .. "?key=" .. keyToCheck .. "&user_id=" .. player.UserId
+    local success, response = pcall(function() return game:HttpGet(url) end)
+    if not success then return false end
+    local success2, data = pcall(function() return HttpService:JSONDecode(response) end)
+    if not success2 then return false end
+    return data.valid == true
+end
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local Config = {MaxKeyLength = 50, ParticleCount = 60, ParticleSpeed = 60}
+local Colors = {
+    Background = Color3.fromRGB(18, 18, 22), Surface = Color3.fromRGB(25, 25, 30),
+    Primary = Color3.fromRGB(45, 45, 50), Secondary = Color3.fromRGB(35, 35, 40),
+    Border = Color3.fromRGB(40, 40, 45), TextPrimary = Color3.fromRGB(220, 220, 225),
+    TextSecondary = Color3.fromRGB(140, 140, 150), Success = Color3.fromRGB(25, 135, 84),
+    Error = Color3.fromRGB(180, 50, 50), Warning = Color3.fromRGB(200, 120, 30),
+    Discord = Color3.fromRGB(60, 70, 180), GetKey = Color3.fromRGB(40, 140, 100),
+    HoverPrimary = Color3.fromRGB(55, 55, 60), HoverDiscord = Color3.fromRGB(50, 60, 160),
+    HoverGetKey = Color3.fromRGB(30, 120, 80), NeonWhite = Color3.fromRGB(255, 255, 255),
+    NeonGlow = Color3.fromRGB(240, 248, 255)
+}
+local State = {IsLoading = false, Particles = {}, Animations = {}, IsDestroyed = false, MousePosition = {X = 0, Y = 0}, FocusStates = {InputFocused = false, ButtonHovered = {}, AnimationsActive = true}}
+local UI = {}
+
+-- SCREEN GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KeySystemGUI"; ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 100; ScreenGui.Parent = PlayerGui; UI.ScreenGui = ScreenGui
+
+-- BACKDROP
+local Backdrop = Instance.new("Frame")
+Backdrop.Size = UDim2.new(1, 0, 1, 0); Backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Backdrop.BackgroundTransparency = 0.1; Backdrop.BorderSizePixel = 0; Backdrop.ZIndex = 100
+Backdrop.Parent = ScreenGui; UI.Backdrop = Backdrop
+
+-- PARTICLE CONTAINER
+local particleContainer = Instance.new("Frame")
+particleContainer.Size = UDim2.new(1, 0, 1, 0); particleContainer.BackgroundTransparency = 1; particleContainer.ZIndex = 105; particleContainer.Parent = Backdrop
+UI.ParticleContainer = particleContainer
+
+-- CONTAINER
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(0, 420, 0, 600); Container.Position = UDim2.new(0.5, -210, 0.5, -300)
+Container.BackgroundColor3 = Colors.Background; Container.BorderSizePixel = 0; Container.ZIndex = 110
+Container.Parent = ScreenGui
+Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 20)
+local cs = Instance.new("UIStroke"); cs.Color = Colors.Border; cs.Thickness = 1; cs.Transparency = 0.3; cs.Parent = Container
+UI.Container = Container
+
+-- ANIMATED BORDER
+local border = Instance.new("Frame")
+border.Size = UDim2.new(1, 6, 1, 6); border.Position = UDim2.new(0, -3, 0, -3)
+border.BackgroundTransparency = 1; border.ZIndex = 109; border.Parent = ScreenGui
+Instance.new("UICorner", border).CornerRadius = UDim.new(0, 23)
+local bs = Instance.new("UIStroke"); bs.Color = Colors.NeonWhite; bs.Thickness = 2; bs.Transparency = 0.3; bs.Parent = border
+local bg = Instance.new("UIGradient")
+bg.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Colors.NeonWhite), ColorSequenceKeypoint.new(0.5, Colors.NeonGlow), ColorSequenceKeypoint.new(1, Colors.NeonWhite)}
+bg.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(0.2, 0.1), NumberSequenceKeypoint.new(0.8, 0.1), NumberSequenceKeypoint.new(1, 0.9)}
+bg.Parent = bs; UI.AnimatedBorder = {Frame = border, Gradient = bg, Stroke = bs}
+
+-- HEADER
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 100); header.BackgroundTransparency = 1; header.ZIndex = 111; header.Parent = Container
+
+-- Icon Container with glow
+local iconContainer = Instance.new("Frame")
+iconContainer.Size = UDim2.new(0, 56, 0, 56); iconContainer.Position = UDim2.new(0.5, -28, 0, 24)
+iconContainer.BackgroundColor3 = Colors.Primary; iconContainer.BorderSizePixel = 0; iconContainer.ZIndex = 112; iconContainer.Parent = header
+Instance.new("UICorner", iconContainer).CornerRadius = UDim.new(0, 14)
+
+local iconGlow = Instance.new("Frame")
+iconGlow.Size = UDim2.new(1, 12, 1, 12); iconGlow.Position = UDim2.new(0, -6, 0, -6)
+iconGlow.BackgroundTransparency = 1; iconGlow.ZIndex = 111; iconGlow.Parent = iconContainer
+Instance.new("UICorner", iconGlow).CornerRadius = UDim.new(0, 20)
+local igs = Instance.new("UIStroke"); igs.Color = Colors.NeonWhite; igs.Thickness = 3; igs.Transparency = 0.2; igs.Parent = iconGlow
+local igg = Instance.new("UIGradient")
+igg.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Colors.NeonWhite), ColorSequenceKeypoint.new(0.5, Colors.NeonGlow), ColorSequenceKeypoint.new(1, Colors.NeonWhite)}
+igg.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(0.2, 0.05), NumberSequenceKeypoint.new(0.8, 0.05), NumberSequenceKeypoint.new(1, 0.8)}
+igg.Parent = igs
+
+-- Icon Image
+local iconImage = Instance.new("ImageLabel")
+iconImage.Size = UDim2.new(0.8, 0, 0.8, 0); iconImage.Position = UDim2.new(0.1, 0, 0.1, 0)
+iconImage.BackgroundTransparency = 1; iconImage.Image = "rbxassetid://7733960981"
+iconImage.ImageColor3 = Colors.NeonWhite; iconImage.ImageTransparency = 0.1
+iconImage.ScaleType = Enum.ScaleType.Fit; iconImage.ZIndex = 113; iconImage.Parent = iconContainer
+
+UI.Header = {Container = header, IconGlow = igg, IconStroke = igs, Icon = iconImage}
+
+-- CONTENT
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -64, 0, 440); content.Position = UDim2.new(0, 32, 0, 120)
+content.BackgroundTransparency = 1; content.ZIndex = 111; content.Parent = Container
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 32); title.BackgroundTransparency = 1; title.Text = "Access Key Required"
+title.TextColor3 = Colors.TextPrimary; title.TextSize = 24; title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Center; title.ZIndex = 112; title.Parent = content
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, 0, 0, 40); subtitle.Position = UDim2.new(0, 0, 0, 40); subtitle.BackgroundTransparency = 1
+subtitle.Text = "Enter your access key to continue"; subtitle.TextColor3 = Colors.TextSecondary
+subtitle.TextSize = 16; subtitle.Font = Enum.Font.Gotham; subtitle.TextXAlignment = Enum.TextXAlignment.Center
+subtitle.TextWrapped = true; subtitle.ZIndex = 112; subtitle.Parent = content
+UI.Content = content
+
+-- INPUT
+local inputSection = Instance.new("Frame")
+inputSection.Size = UDim2.new(1, 0, 0, 100); inputSection.Position = UDim2.new(0, 0, 0, 100)
+inputSection.BackgroundTransparency = 1; inputSection.ZIndex = 112; inputSection.Parent = content
+
+local inputContainer = Instance.new("Frame")
+inputContainer.Size = UDim2.new(1, 0, 0, 52); inputContainer.BackgroundColor3 = Colors.Surface
+inputContainer.BorderSizePixel = 0; inputContainer.ZIndex = 113; inputContainer.Parent = inputSection
+Instance.new("UICorner", inputContainer).CornerRadius = UDim.new(0, 12)
+local is2 = Instance.new("UIStroke"); is2.Color = Colors.Border; is2.Thickness = 1; is2.Transparency = 0.3; is2.Parent = inputContainer
+
+local inputGlow = Instance.new("Frame")
+inputGlow.Size = UDim2.new(1, 8, 1, 8); inputGlow.Position = UDim2.new(0, -4, 0, -4)
+inputGlow.BackgroundTransparency = 1; inputGlow.ZIndex = 112; inputGlow.Visible = false; inputGlow.Parent = inputContainer
+Instance.new("UICorner", inputGlow).CornerRadius = UDim.new(0, 16)
+local igs2 = Instance.new("UIStroke"); igs2.Color = Colors.NeonWhite; igs2.Thickness = 2; igs2.Transparency = 0.3; igs2.Parent = inputGlow
+local igg2 = Instance.new("UIGradient")
+igg2.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Colors.NeonWhite), ColorSequenceKeypoint.new(0.5, Colors.NeonGlow), ColorSequenceKeypoint.new(1, Colors.NeonWhite)}
+igg2.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(0.2, 0.1), NumberSequenceKeypoint.new(0.8, 0.1), NumberSequenceKeypoint.new(1, 0.8)}
+igg2.Parent = igs2
+
+local textInput = Instance.new("TextBox")
+textInput.Size = UDim2.new(1, -24, 1, 0); textInput.Position = UDim2.new(0, 12, 0, 0)
+textInput.BackgroundTransparency = 1; textInput.Text = ""; textInput.PlaceholderText = "Enter key here"
+textInput.TextColor3 = Colors.TextPrimary; textInput.PlaceholderColor3 = Colors.TextSecondary
+textInput.TextSize = 16; textInput.Font = Enum.Font.Gotham; textInput.TextXAlignment = Enum.TextXAlignment.Left
+textInput.ClearTextOnFocus = false; textInput.ZIndex = 114; textInput.Parent = inputContainer
+
+local charCounter = Instance.new("TextLabel")
+charCounter.Size = UDim2.new(0, 80, 0, 20); charCounter.Position = UDim2.new(1, -85, 0, 60)
+charCounter.BackgroundTransparency = 1; charCounter.Text = "0/" .. Config.MaxKeyLength
+charCounter.TextColor3 = Colors.TextSecondary; charCounter.TextSize = 12; charCounter.Font = Enum.Font.Gotham
+charCounter.TextXAlignment = Enum.TextXAlignment.Right; charCounter.ZIndex = 113; charCounter.Parent = inputSection
+
+UI.Input = {Container = inputContainer, TextBox = textInput, Counter = charCounter, Stroke = is2, Glow = {Frame = inputGlow, Stroke = igs2, Gradient = igg2}}
+
+-- BUTTONS
+local submitButton = Instance.new("TextButton")
+submitButton.Size = UDim2.new(1, 0, 0, 48); submitButton.Position = UDim2.new(0, 0, 0, 200)
+submitButton.BackgroundColor3 = Colors.Primary; submitButton.BorderSizePixel = 0
+submitButton.Text = "Verify Access Key"; submitButton.TextColor3 = Colors.TextPrimary
+submitButton.TextSize = 16; submitButton.Font = Enum.Font.GothamMedium; submitButton.AutoButtonColor = false
+submitButton.ZIndex = 113; submitButton.Parent = content
+Instance.new("UICorner", submitButton).CornerRadius = UDim.new(0, 12)
+
+local loadingContainer = Instance.new("Frame")
+loadingContainer.Size = UDim2.new(0, 24, 0, 24); loadingContainer.Position = UDim2.new(0.5, -12, 0, 12)
+loadingContainer.BackgroundTransparency = 1; loadingContainer.Visible = false; loadingContainer.ZIndex = 114; loadingContainer.Parent = submitButton
+
+local spinner = Instance.new("Frame")
+spinner.Size = UDim2.new(1, 0, 1, 0); spinner.BackgroundColor3 = Colors.TextPrimary; spinner.BorderSizePixel = 0; spinner.ZIndex = 115; spinner.Parent = loadingContainer
+Instance.new("UICorner", spinner).CornerRadius = UDim.new(1, 0)
+
+local buttonsContainer = Instance.new("Frame")
+buttonsContainer.Size = UDim2.new(1, 0, 0, 48); buttonsContainer.Position = UDim2.new(0, 0, 0, 260)
+buttonsContainer.BackgroundTransparency = 1; buttonsContainer.ZIndex = 112; buttonsContainer.Parent = content
+
+local getKeyButton = Instance.new("TextButton")
+getKeyButton.Size = UDim2.new(0.48, 0, 1, 0); getKeyButton.BackgroundColor3 = Colors.GetKey
+getKeyButton.BorderSizePixel = 0; getKeyButton.Text = "Get Key"; getKeyButton.TextColor3 = Colors.TextPrimary
+getKeyButton.TextSize = 14; getKeyButton.Font = Enum.Font.GothamMedium; getKeyButton.AutoButtonColor = false
+getKeyButton.ZIndex = 113; getKeyButton.Parent = buttonsContainer
+Instance.new("UICorner", getKeyButton).CornerRadius = UDim.new(0, 10)
+
+local discordButton = Instance.new("TextButton")
+discordButton.Size = UDim2.new(0.48, 0, 1, 0); discordButton.Position = UDim2.new(0.52, 0, 0, 0)
+discordButton.BackgroundColor3 = Colors.Discord; discordButton.BorderSizePixel = 0
+discordButton.Text = "Discord"; discordButton.TextColor3 = Colors.TextPrimary
+discordButton.TextSize = 14; discordButton.Font = Enum.Font.GothamMedium; discordButton.AutoButtonColor = false
+discordButton.ZIndex = 113; discordButton.Parent = buttonsContainer
+Instance.new("UICorner", discordButton).CornerRadius = UDim.new(0, 10)
+
+UI.Buttons = {Submit = submitButton, GetKey = getKeyButton, Discord = discordButton, Loading = {Container = loadingContainer, Spinner = spinner}}
+
+-- STATUS
+local statusContainer = Instance.new("Frame")
+statusContainer.Size = UDim2.new(1, 0, 0, 60); statusContainer.Position = UDim2.new(0, 0, 0, 330)
+statusContainer.BackgroundTransparency = 1; statusContainer.ZIndex = 112; statusContainer.Parent = content
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 1, 0); statusLabel.BackgroundTransparency = 1; statusLabel.Text = ""
+statusLabel.TextColor3 = Colors.Error; statusLabel.TextSize = 14; statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Center; statusLabel.TextWrapped = true; statusLabel.ZIndex = 113; statusLabel.Parent = statusContainer
+UI.Status = statusLabel
+
+-- PARTICLE FUNCTIONS
+local function CreateParticle()
+    if not UI.ParticleContainer or State.IsDestroyed then return nil end
+    local size = math.random(8, 24)
+    local particle = Instance.new("Frame")
+    particle.Size = UDim2.new(0, size, 0, size); particle.Position = UDim2.new(math.random() * 1.4 - 0.2, 0, 1.2, 0)
+    particle.BackgroundColor3 = Colors.NeonWhite; particle.BackgroundTransparency = math.random(60, 85) / 100
+    particle.BorderSizePixel = 0; particle.ZIndex = 106; particle.Parent = UI.ParticleContainer
+    Instance.new("UICorner", particle).CornerRadius = UDim.new(1, 0)
+    local d = {frame = particle, vx = (math.random() - 0.5) * 0.004, vy = -math.random(20, 50) / 10000, created = tick(), rotation = 0, rotationSpeed = (math.random() - 0.5) * 2, pulsePhase = math.random() * math.pi * 2, originalTransparency = particle.BackgroundTransparency, lifetime = math.random(30, 60), originalSize = size, repelForce = {x = 0, y = 0}, mass = size / 10}
+    table.insert(State.Particles, d); return particle
+end
+
+local function UpdateParticles()
+    if State.IsDestroyed or not UI.ParticleContainer then return end
+    local sx = State.MousePosition.X / UI.ScreenGui.AbsoluteSize.X; local sy = State.MousePosition.Y / UI.ScreenGui.AbsoluteSize.Y
+    for i = #State.Particles, 1, -1 do
+        local p = State.Particles[i]
+        if not p or not p.frame.Parent then table.remove(State.Particles, i)
+        else
+            local cp = p.frame.Position
+            if cp.Y.Scale < -0.3 or tick() - p.created > p.lifetime then p.frame:Destroy(); table.remove(State.Particles, i)
+            else
+                local dist = math.sqrt((cp.X.Scale - sx)^2 + (cp.Y.Scale - sy)^2)
+                local rfX, rfY = 0, 0
+                if dist < 0.15 and dist > 0 then
+                    local power = ((0.15 - dist) / 0.15) * 0.08 / p.mass
+                    rfX = (cp.X.Scale - sx) / dist * power; rfY = (cp.Y.Scale - sy) / dist * power
+                end
+                p.repelForce.x = p.repelForce.x * 0.85 + rfX * 0.15; p.repelForce.y = p.repelForce.y * 0.85 + rfY * 0.15
+                local nx = cp.X.Scale + p.vx + p.repelForce.x; local ny = cp.Y.Scale + p.vy + p.repelForce.y
+                if nx <= -0.2 then nx = 1.2 elseif nx >= 1.2 then nx = -0.2 end
+                p.rotation = p.rotation + p.rotationSpeed; p.frame.Rotation = p.rotation
+                local breathe = math.sin(tick() * 2.5 + p.pulsePhase) * 0.1 + 1
+                p.frame.Size = UDim2.new(0, p.originalSize * breathe, 0, p.originalSize * breathe)
+                p.frame.BackgroundTransparency = math.max(0.5, math.min(0.95, p.originalTransparency + math.sin(tick() * 3 + p.pulsePhase) * 0.1))
+                p.vx = p.vx * 0.995; p.vy = p.vy * 0.998
+                p.frame.Position = UDim2.new(nx, 0, ny, 0)
+            end
+        end
+    end
+end
+
+-- HELPER FUNCTIONS
+local function ShowStatus(message, isError, isSuccess)
+    if not UI.Status then return end
+    UI.Status.Text = message
+    UI.Status.TextColor3 = isSuccess and Colors.Success or (isError and Colors.Error or Colors.Warning)
+    UI.Status.TextTransparency = 1
+    TweenService:Create(UI.Status, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+end
+
+local function SetLoading(isLoading)
+    State.IsLoading = isLoading
+    loadingContainer.Visible = isLoading
+    submitButton.Text = isLoading and "" or "Verify Access Key"
+    if isLoading then
+        local tween = TweenService:Create(spinner, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360})
+        tween:Play(); State.Animations.SpinTween = tween
+    else
+        if State.Animations.SpinTween then State.Animations.SpinTween:Cancel(); spinner.Rotation = 0 end
+    end
+end
+
+local function UpdateCharCounter()
+    local l = string.len(textInput.Text)
+    charCounter.Text = l .. "/" .. Config.MaxKeyLength
+    charCounter.TextColor3 = l >= Config.MaxKeyLength and Colors.Error or (l >= Config.MaxKeyLength * 0.8 and Colors.Warning or Colors.TextSecondary)
+end
+
+local function CopyToClipboard(text, successMessage)
+    pcall(function() if setclipboard then setclipboard(text); ShowStatus(successMessage, false, true) else ShowStatus("Link: " .. text, false, true) end end)
+end
+
+-- BUTTON GLOW EFFECTS
+local function CreateButtonGlow(button, hoverColor, originalColor)
+    local glowBorder = Instance.new("Frame")
+    glowBorder.Size = UDim2.new(1, 8, 1, 8); glowBorder.Position = UDim2.new(0, -4, 0, -4)
+    glowBorder.BackgroundTransparency = 1; glowBorder.ZIndex = button.ZIndex - 1; glowBorder.Visible = false; glowBorder.Parent = button
+    Instance.new("UICorner", glowBorder).CornerRadius = UDim.new(0, 14)
+    local stroke = Instance.new("UIStroke"); stroke.Color = Colors.NeonWhite; stroke.Thickness = 2; stroke.Transparency = 0.3; stroke.Parent = glowBorder
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Colors.NeonWhite), ColorSequenceKeypoint.new(0.5, Colors.NeonGlow), ColorSequenceKeypoint.new(1, Colors.NeonWhite)}
+    gradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(0.2, 0.1), NumberSequenceKeypoint.new(0.8, 0.1), NumberSequenceKeypoint.new(1, 0.8)}
+    gradient.Parent = stroke
+    local currentTween = nil
+    button.MouseEnter:Connect(function()
+        glowBorder.Visible = true
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.1}):Play()
+        if currentTween then currentTween:Cancel() end
+        currentTween = TweenService:Create(gradient, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360})
+        currentTween:Play()
+    end)
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = originalColor}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.3), {Transparency = 0.8}):Play()
+        if currentTween then currentTween:Cancel(); gradient.Rotation = 0 end
+        task.wait(0.3); glowBorder.Visible = false
+    end)
+end
+
+CreateButtonGlow(submitButton, Colors.HoverPrimary, Colors.Primary)
+CreateButtonGlow(getKeyButton, Colors.HoverGetKey, Colors.GetKey)
+CreateButtonGlow(discordButton, Colors.HoverDiscord, Colors.Discord)
+
+-- EVENTS
+UserInputService.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then State.MousePosition = {X = input.Position.X, Y = input.Position.Y} end end)
+
+textInput:GetPropertyChangedSignal("Text"):Connect(function()
+    if string.len(textInput.Text) > Config.MaxKeyLength then textInput.Text = string.sub(textInput.Text, 1, Config.MaxKeyLength) end
+    UpdateCharCounter(); UI.Status.Text = ""
+end)
+
+local inputGlowTween = nil
+textInput.Focused:Connect(function()
+    inputGlow.Visible = true
+    TweenService:Create(is2, TweenInfo.new(0.2), {Color = Colors.NeonWhite, Transparency = 0.1}):Play()
+    TweenService:Create(igs2, TweenInfo.new(0.2), {Transparency = 0.1}):Play()
+    if inputGlowTween then inputGlowTween:Cancel() end
+    inputGlowTween = TweenService:Create(igg2, TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360})
+    inputGlowTween:Play()
+end)
+textInput.FocusLost:Connect(function()
+    TweenService:Create(is2, TweenInfo.new(0.2), {Color = Colors.Border, Transparency = 0.3}):Play()
+    TweenService:Create(igs2, TweenInfo.new(0.3), {Transparency = 0.8}):Play()
+    if inputGlowTween then inputGlowTween:Cancel(); igg2.Rotation = 0 end
+    task.wait(0.3); inputGlow.Visible = false
+end)
+
+local function doVerify()
+    if State.IsLoading then return end
+    local key = textInput.Text
+    if key == "" then ShowStatus("Please enter an access key", true) return end
+    SetLoading(true); ShowStatus("Validating key...", false, false)
+    task.spawn(function()
+        local valid = isValidKey(key)
+        SetLoading(false)
+        if valid then
+            validKey = key
+            ShowStatus("Key verified successfully!", false, true)
+            pcall(function() if writefile then writefile("SilentSet_license.txt", key) end end)
+            task.delay(1.2, function() State.IsDestroyed = true; ScreenGui:Destroy() end)
+        else
+            ShowStatus("Invalid, expired, or blacklisted key", true)
+            textInput:CaptureFocus()
+        end
+    end)
+end
+
+submitButton.MouseButton1Click:Connect(doVerify)
+UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.KeyCode == Enum.KeyCode.Return and textInput:IsFocused() then doVerify() end end)
+
+getKeyButton.MouseButton1Click:Connect(function() CopyToClipboard("https://discord.gg/MsYyHscswr", "Discord invite link copied to clipboard!") end)
+discordButton.MouseButton1Click:Connect(function() CopyToClipboard("https://discord.gg/MsYyHscswr", "Discord link copied to clipboard!") end)
+
+-- ANIMATION LOOPS
+task.spawn(function() for i = 1, 25 do if State.IsDestroyed then break end CreateParticle(); task.wait(math.random(20, 100) / 1000) end
+    while not State.IsDestroyed and ScreenGui.Parent do if #State.Particles < Config.ParticleCount then CreateParticle() end; task.wait(math.random(400, 1200) / 1000) end end)
+task.spawn(function() while not State.IsDestroyed and ScreenGui.Parent do pcall(UpdateParticles); task.wait(1/Config.ParticleSpeed) end end)
+task.spawn(function() while not State.IsDestroyed and border.Parent do
+    local t = TweenService:Create(bg, TweenInfo.new(4, Enum.EasingStyle.Linear), {Rotation = bg.Rotation + 360}); t:Play(); t.Completed:Wait()
+end end)
+task.spawn(function() while not State.IsDestroyed and igg.Parent do
+    local t = TweenService:Create(igg, TweenInfo.new(3, Enum.EasingStyle.Linear), {Rotation = igg.Rotation + 360}); t:Play(); t.Completed:Wait()
+end end)
+
+-- ENTRANCE ANIMATION
+Container.Size = UDim2.new(0, 0, 0, 0); Container.BackgroundTransparency = 1; Backdrop.BackgroundTransparency = 1
+TweenService:Create(Backdrop, TweenInfo.new(0.3), {BackgroundTransparency = 0.1}):Play()
+task.wait(0.1)
+TweenService:Create(Container, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 420, 0, 600), BackgroundTransparency = 0}):Play()
+task.wait(0.5); textInput:CaptureFocus()
+
+-- DRAGGING
+local dragging, dragStart, startPos
+header.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = i.Position; startPos = Container.Position end end)
+UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart; Container.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+
+-- WAIT FOR KEY
+repeat task.wait(0.1) until validKey ~= "" or State.IsDestroyed
+if State.IsDestroyed and validKey == "" then return end
+
+-- ========================= KILL DETECTION =========================
+local function checkIfKilled()
+    if validKey == "" then return false end
+    local url = "https://negative-unselfish-epilepsy.ngrok-free.dev/check_kill?key=" .. validKey
+    local success, response = pcall(function() return game:HttpGet(url) end)
+    if not success then return false end
+    local success2, data = pcall(function() return HttpService:JSONDecode(response) end)
+    if not success2 then return false end
+    return data.killed == true
+end
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if validKey ~= "" and checkIfKilled() then
+            pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title = "KEY KILLED", Text = "Key blacklisted. You will be kicked.", Duration = 10}) end)
+            task.spawn(function() pcall(function() player:Kick("Key Has Been BlackListed.") end) task.wait(0.8) pcall(function() player:Kick("Key Has Been BlackListed.") end) task.wait(1.2) pcall(function() game:Shutdown() end) end)
+            break
+        end
+    end
+end)
+
+pcall(function() game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Silent Set - FTF", Text = "Loading Flee The Facility...", Duration = 3}) end)
+
+-- =====================================================================
+-- ========================= FLEE THE FACILITY SCRIPT =========================
+-- =====================================================================
+-- /* FTF */--
+local function c_caller(t, f, cf, ...)
+    if type(f) == t then if cf then return f() end return f end
+    return ...
+end
+local function ReadVMVersion()
+    return c_caller("function", isluau, 0) and "Luau" or _VERSION
+end
+local VM_Version = ReadVMVersion()
+local ugc = game or Game
+if not VM_Version:lower():find('luau') then ugc.GetService(ugc, 'Players').LocalPlayer:Kick('the current game is not support Luau. (this game are correctly using old LuaVM)') end
+if not ugc:IsLoaded() then
+local s: boolean = pcall(function()
+        ugc:Load() -- comment by fxengif : force load if game not load itself
+        ugc.Loaded:Wait()
+    end)
+    if not s then repeat task.wait() until ugc:IsLoaded() end
+end
+local this = {Version = '1.1.0'}
+local FindServiceTery = function(s) return ugc:GetService(s) end
+local newcclosure = c_caller("function", newcclosure, nil, function(f) return f end)
+-- local hookfunction = c_caller("function", hookfunction or hookfunc)
+-- local replacefunction = c_caller("function", replacefunction or replacefunc)
+-- local restorefunction = c_caller("function", restorefunction or restore_function)
+-- local isfunctionhooked = c_caller("function", isfunctionhooked or is_function_hooked)
+-- local ishooked = c_caller("function", ishooked or is_hooked)
+-- local getproperties = c_caller("function", getproperties)
+local setclipboard = c_caller("function", setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set))
+local request, loadstring, setidentity, getidentity = http_request or request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request), loadstring or load, (setidentity or setthreadidentity) or (setthreadcontext or set_thread_context), (getidentity or getthreadidentity) or (getthreadcontext or get_thread_context)
+local identity, old_identity = c_caller("function", getidentity, 0);old_identity=identity
+--> created by fxengif <--
+local function c_type(ty, v, lu)
+    local t = lu and typeof or type
+    return t(v) == ty
+end
+-- end --
+task.spawn(function()
+    if (getidentity and setidentity and c_type("number", identity)) and identity <= 5 then
+        pcall(setidentity,8);identity=getidentity()
+    end
+end)
+local t_str, t_num = tostring, tonumber
+local pack, unpack, insert = table.pack, table.unpack, table.insert
+function CallValidFunc(obj, key, ...)
+    if not c_type("Instance", obj, true) then
+        return "Invalid object (not an Instance)", false
+    end
+    local args = pack(...)
+    local s, r = pcall(function()
+        return obj[key](obj, unpack(args, 1, args.n))
+    end)
+    if c_type("boolean", r) then return r end
+    return s and r, s or `Error: {t_str(r)}`, false
+end
+--[[local function isValidHttpFunc(obj : Instance, ... : any): boolean
+    local r = CallValidFunc(obj, ...)
+    return c_type('string', r) and r:lower():find('argument', 1, true) ~= nil
+end]]
+function RequestLoadRawHttp(RequestHttp, against, c, snotify)
+    local r, s, su; s, su = xpcall(function()
+        local rep, loads, y, valid = nil,
+        against and loadstring or
+        function(...)
+            local args = pack(...)
+            return function() return unpack(args, 1, args.n) end 
+        end,
+        c or false
+        if not rep then
+            rep, valid = CallValidFunc(ugc, "HttpGet", RequestHttp, y)
+        end
+        if not valid then
+            rep, valid = CallValidFunc(ugc, "HttpGetAsync", RequestHttp, y)
+        end
+        -- comment by fxengif : method two (check by error), whatever
+        --[[if isValidHttpFunc(ugc, "HttpGet") then
+            rep = ugc:HttpGet(RequestHttp, y)
+        elseif isValidHttpFunc(ugc, "HttpGetAsync") then
+            rep = ugc:HttpGetAsync(RequestHttp, y)
+        end]]
+        if request and not valid then
+            local s, sc = pcall(function()
+                local t = request({Url = RequestHttp, Method = "GET"})
+                return c_type("table", t) and t.Body
+            end)
+            rep = s and sc
+        end
+        r = pack(loads(rep)())
+        return true
+        end, function(e)
+        if c_type("string", e) and not snotify then
+            local BF = Instance.new("BindableFunction")
+            BF.OnInvoke = function(c)
+                if c ~= "Close" and setclipboard then
+                    setclipboard("Https :- "..RequestHttp.."\nError Detail :- "..e)
+                end
+            end
+            FindServiceTery"StarterGui":SetCore("SendNotification", {Title = "Error: "..RequestHttp, Text = e, Icon = "rbxassetid://7733701545", Duration = (1/0), Callback = BF, Button1 = "Copy", Button2 = "Close"});BF:Destroy()
+        end
+    end)
+    return (s and su) and unpack(r, 1, r.n)
+end
+local GetAdvanceS;xpcall(function()
+    GetAdvanceS = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/GetSafeService", true, nil, true)
+    end, function()
+    GetAdvanceS = FindServiceTery
+end)
+local getgenv_ = c_caller("function", getgenv, true, c_caller("table", getgenv))
+local Genv = c_type("table", getgenv_) and getgenv_ or _G;Genv.SHub = Genv.SHub or {};Genv.SHub.MemoryService = Genv.SHub.MemoryService or {}
+task.spawn(function()
+    FindServiceTery = setmetatable(Genv.SHub.MemoryService, {
+        __call = function(t, n)
+            local ref = c_caller("function", cloneref, nil, function(s) return s end)
+            local s, c = pcall(function()
+                return ref(GetAdvanceS(n))
+            end)
+            if s and c then
+                local x = pcall(rawset, t, n, c)
+                if not x then t[n] = c end
+                return c
+            end
+        end
+    })
+end)
+RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/ScriptStarOZX/refs/heads/main/IfXDarkNotification.Lua", true);local tracery_notif=createNotification;createNotification=nil
+-- // this function created by Artsynia \\ --
+local function IsGame_Valid(): boolean
+    local thisid = 893973440
+    local s, r = pcall(function()
+        local Asset = FindServiceTery("AssetService")
+        local PlaceAsync = CallValidFunc(Asset, "GetGamePlacesAsync")
+        if not PlaceAsync then return false end
+        local Page = CallValidFunc(PlaceAsync, "GetCurrentPage")
+        for _, t in pairs(Page) do
+            for _, pid in pairs(t) do
+                if pid ~= thisid then continue end
+                return true
+            end
+        end
+    end)
+    return s and r or ugc.PlaceId == thisid
+end
+local PInfo = CallValidFunc(FindServiceTery("MarketplaceService"), "GetProductInfo", ugc.PlaceId)
+local GameName = c_type("table", PInfo) and PInfo.Name or "baba"
+if not IsGame_Valid() then return tracery_notif(GameName, "this current game was incorrect, does we get it right?", 3.5) end
+tracery_notif("Loading", "Please Wait...", 3.5)
+local why = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/Function/RBXSignal.luau", true, nil, true)
+pcall(why) -- comment by fxengif : and I don't know why
+-------------------------------------------------------
+local UiGit, UiRaw = "https://github.com/ActualMasterOogway/Fluent-Renewed", "https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed"
+local Fluent = RequestLoadRawHttp(UiGit.."/releases/latest/download/Fluent.luau", true)
+local SaveManager = RequestLoadRawHttp(UiRaw.."/refs/heads/main/Addons/SaveManager.luau", true)
+local InterfaceManager = RequestLoadRawHttp(UiRaw.."/refs/heads/main/Addons/InterfaceManager.luau", true)
+local SWorkspace = FindServiceTery("Workspace")
+local SLighting = FindServiceTery("Lighting")
+local SUis = FindServiceTery("UserInputService")
+local SCoreGui = FindServiceTery("CoreGui")
+local SRunService = FindServiceTery("RunService")
+local SPlayers = FindServiceTery("Players")
+local SReplicatedStorage = FindServiceTery("ReplicatedStorage")
+-- local SCurrentCamera = SWorkspace.CurrentCamera
+local RemoteEvent = SReplicatedStorage:FindFirstChild("RemoteEvent") or SReplicatedStorage:WaitForChild("RemoteEvent", 2)
+-- // That All \\ --
+Genv.SHub.Notify = Genv.SHub.Notify or {}
+Genv.SHub.Anti = Genv.SHub.Anti or {}
+Genv.SHub.Toggle = Genv.SHub.Toggle or {}
+Genv.SHub.TaskSignal = c_caller("function", get_hook_connections, 0) or {}
+-- // Task \\ --
+--> created by fxengif <--
+task.spawn(function()
+    pcall(function()
+        -- if table.getn(Genv.SHub.TaskSignal) > 0 then
+            for s in pairs(Genv.SHub.TaskSignal) do
+                if s then s:Disconnect() end
+            end
+            --[[table.foreach(Genv.SHub.TaskSignal, function(s)
+                if s then s:Disconnect() end
+            end)]]
+        -- end
+    end)
+end)
+-- // Task end \\ --
+-- /* function like we use */ --
+--[[local function Get_EnumItems(enum)
+    local items = {}
+    for _, it in pairs(enum:GetEnumItems()) do
+        items[it] = {name = it.Name, value = it.Value}
+    end
+    return items
+end]]
+local function find_instance(it, was)
+    local love, cute = typeof(it), string.lower(was)
+    if love and cute then
+        local angel = (love == 'Instance' and it:FindFirstChild(was, true))
+        if not angel then
+            for _, baby in pairs(love == 'table' and it or it:GetDescendants()) do
+                local you = string.lower(baby.Name)
+                if you == cute then
+                    angel = baby
+                    break
+                end
+            end
+        end
+        return angel, angel ~= nil
+    end
+    return 'it not found, my little babyboy would you like to retry?', false
+end
+function findroot_or(sorry, marries)
+    --/* reworked by fxengif */
+    if not (sorry and sorry.Parent) then return end
+    local can, we, talk = nil, sorry:FindFirstChildWhichIsA('Humanoid')
+    if not can then
+        if we then
+            talk = pcall(function() can = we.RootPart end)
+            if not (talk and can) then
+                talk = pcall(function() 
+                    can = we.Torso
+                end)
+            end
+        end
+        if not (talk and can) then
+            can = sorry:FindFirstChild("HumanoidRootPart") or sorry:FindFirstChild("Torso") or sorry:FindFirstChild("UpperTorso")
+        end
+    end
+    return not marries and can or we
+end
+-- // end \\ --
+local function isLocalPlayerExist()
+    local s, e = pcall(SPlayers.CreateLocalPlayer, SPlayers)
+    if c_type("string", e) and e:lower():find('already exist') then
+        return true, s
+    end
+    return false, s
+end
+local LP = SPlayers.LocalPlayer or SPlayers:GetPropertyChangedSignal("LocalPlayer"):Wait()
+do local exists, suc = isLocalPlayerExist()
+    if not (LP or suc) and exists then
+        pcall(function()
+            LP = SPlayers.localPlayer
+        end)
+    end
+end
+local LPGui = LP:FindFirstChildOfClass("PlayerGui")
+local LPC = LP.Character or LP.CharacterAdded:Wait()
+local LPH, LPR = findroot_or(LPC, 0), findroot_or(LPC)
+Genv.SHub.TaskSignal.LPCAdded = LP.CharacterAdded:Connect(function(c)
+    repeat SRunService.Heartbeat:Wait()
+        LPC, LPH, LPR = c, findroot_or(c, 0), findroot_or(c)
+    until LPC and LPH and LPR
+end)
+function GetIsOnMobile()
+    local IsOnMobile
+    xpcall(function()
+        IsOnMobile = table.find({Enum.Platform.Android, Enum.Platform.IOS}, SUis:GetPlatform())
+        end, function()
+        IsOnMobile = SUis.TouchEnabled and not SUis.KeyboardEnabled
+    end)
+    return IsOnMobile
+end
+function GetHiddenGui()
+    local Tery_ui, gethui_ = nil, c_caller("function", gethui, "ae 2020")
+    if gethui_ then
+        Tery_ui = gethui_
+    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then
+        Tery_ui = SCoreGui.RobloxGui
+    elseif SCoreGui then
+        Tery_ui = SCoreGui
+    elseif LPGui then
+        Tery_ui = LPGui
+    end
+    return Tery_ui
+end
+local Window = Fluent:CreateWindow({Title = `SilentSet - [ BETA ] • {GameName}`, SubTitle = "V2", TabWidth = 150, Size = UDim2.fromOffset(540, 385), Resize = false, Acrylic = true, Theme = "Darker", MinimizeKey = Enum.KeyCode.LeftControl})
+local SFTab = {
+    Main = Window:AddTab({Title = "Main", Icon = "menu"}),
+    Local = Window:AddTab({Title = "Local", Icon = "user"}),
+    Anti_Ify = Window:AddTab({Title = "Anti & Notify", Icon = "user-check"}),
+    Game_Rg = Window:AddTab({Title = "Game & Ragebait", Icon = "server"}),
+    v_cre = Window:AddTab({Title = "Project & Credit", Icon = "rbxassetid://7733955511"}),
+    Content = Window:AddTab({Title = "Content & Record", Icon = "video"}),
+    Other = Window:AddTab({Title = "Other", Icon = "building"}),
+    Settings = Window:AddTab({Title = "Settings", Icon = "settings"})
+}
+-- local FOption = Fluent.Options
+do
+-- /* these function are created by Artsynia *\ --
+local function IsValidInstanceOf(inst: any?, of: any?): boolean
+    return c_type("Instance", inst, true) and inst.Parent and inst:IsDescendantOf(of or SWorkspace)
+end
+local function GetCurrentMap(): Instance?
+    local map
+    local ov = find_instance(SReplicatedStorage, "CurrentMap")
+    if ov and ov:IsA("ObjectValue") then
+        local v = ov.Value
+        map = IsValidInstanceOf(v) and v
+    end
+    if not map then
+        local comp = find_instance(SWorkspace, "ComputerTable")
+        if comp and IsValidInstanceOf(comp.Parent) then
+            map = comp.Parent
+        end
+    end
+    if not map then
+        local pod = find_instance(SWorkspace, "FreezePod")
+        if pod and IsValidInstanceOf(pod.Parent) then
+            map = pod.Parent
+        end
+    end
+    return map
+end
+local function Sround(num: number, np: number): number
+    local mult = 10 ^ (np or 0)
+    return math.floor(num * mult + 0.5) / mult
+end
+local function ToNumV(v: any): number
+    if c_type("number", v) then return v end
+    local n = t_num(v); return if n ~= nil then n else 0
+end
+local function GetPlayerList(lyname: boolean): any
+    local list = {}
+    for _, p in pairs(SPlayers:GetPlayers()) do
+        if p == LP then continue end
+        insert(list, lyname and p.Name or p)
+    end
+    return list
+end
+-- comment by Artsynia : function for esp!!
+local function getSafeParent(SName: string?): Instance
+    local guiParent = GetHiddenGui()
+    if not SName then SName = "nia = aura" end
+    local fn = `SHub_ESP_{SName}`
+    local folder = guiParent:FindFirstChild(fn)
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = fn
+        folder.Parent = guiParent
+    end
+    return folder
+end
+local function applyHighlight(part: any): Instance?
+    local hl = part:FindFirstChild("S_Highlight")
+    if hl then return end
+    hl = Instance.new("Highlight")
+    hl.Name = "S_Highlight"
+    hl.Adornee = part
+    hl.FillColor = Color3.new(0, 0, 0)
+    hl.OutlineColor = Color3.new(0, 0, 0)
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillTransparency = 0.50
+    hl.OutlineTransparency = 0.85
+    hl.Parent = part
+    return hl
+end
+local function createBillboard(part: any, IDorN: string, ESPContainer: Instance): (BillboardGui, TextLabel, TextLabel)
+    local billboard = ESPContainer:FindFirstChild(IDorN)
+    if billboard then billboard:Destroy() end
+    billboard = Instance.new("BillboardGui")
+    billboard.Name = IDorN
+    billboard.Adornee = part
+    billboard.Size = UDim2.new(5, 0, 5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.Parent = ESPContainer
+    local label = Instance.new("TextLabel")
+    label.Name = "Text_Label"
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.TextTransparency = 0.25
+    label.TextStrokeTransparency = 0.25
+    label.TextSize = 11
+    label.Font = Enum.Font.FredokaOne
+    label.TextColor3 = Color3.new(0, 0, 0)
+    label.Text = "Loading..."
+    label.Parent = billboard
+    local arrow = Instance.new("TextLabel")
+    arrow.Name = "Arrow_Label"
+    arrow.Size = UDim2.new(1, 0, 0, 20)
+    arrow.Position = UDim2.new(0.5, 0, 0, 1)
+    arrow.AnchorPoint = Vector2.new(0.5, 1)
+    arrow.BackgroundTransparency = 1
+    arrow.TextTransparency = 0.25
+    arrow.TextColor3 = Color3.new(1, 1, 1)
+    arrow.TextStrokeTransparency = 0.25
+    arrow.Font = Enum.Font.FredokaOne
+    arrow.TextScaled = true
+    arrow.Rotation = 180
+    arrow.Text = "^"
+    arrow.Parent = billboard
+    return billboard, label, arrow
+end
+local function GetESPId(inst: any?): string
+    return `ESP_{inst:GetDebugId()}`
+end
+-- /* justin */ --
+SFTab.Main:AddSection "ESP"
+-- comment by fxengif : i also will rework all of the esp code for better performance. just for you my little angel but i have to rest for now
+SFTab.Main:AddToggle("EspToggle", {Title = "Esp Player", Description = "Enable/Disable Esp Player", Default = false, Callback = function(v)
+    --> created by Artsynia <--
+    Genv.SHub.Toggle.PEspEnable = v
+    local espConnection
+    local roleColors = {
+        Beast = Color3.fromRGB(255, 0, 0),
+        Survival_Captured = Color3.fromRGB(0, 0, 255),
+        Survival = Color3.fromRGB(0, 255, 0),
+        Default = Color3.fromRGB(200, 200, 200)
+    }
+    local espContainer = getSafeParent("Player")
+    local function clearESP()
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
+        for _, player in pairs(SPlayers:GetPlayers()) do
+            if player ~= LP and player.Character then
+                local hl = player.Character:FindFirstChild("S_Highlight")
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+    local function GetPlayerStats(stats)
+        if not stats then return end
+        local isBeast, Captured, health = stats:FindFirstChild("IsBeast"), stats:FindFirstChild("Captured"), stats:FindFirstChild("Health")
+        return (isBeast.Value and roleColors.Beast) or (Captured.Value and roleColors.Survival_Captured) or (health.Value <= 0 and roleColors.Default) or roleColors.Survival
+    end
+    local function GetAlivePlayerMap()
+        local map = {}
+        for _, p in pairs(GetPlayerList(true)) do
+            map[p] = true
+        end
+        return map
+    end
+    local function updateESP()
+        local alivePlayer = GetAlivePlayerMap()
+        for _, u in pairs(espContainer:GetChildren()) do
+            if u:IsA('BillboardGui') then
+                if not alivePlayer[u.Name] then u:Destroy() end
+            end
+        end
+        for _, player in pairs(SPlayers:GetPlayers()) do
+            if player ~= LP and player.Character then
+                local char = player.Character
+                local head = char:FindFirstChild("Head")
+                local root = findroot_or(char)
+                local stats = player:FindFirstChild("TempPlayerStatsModule")
+                local PlayerStats = GetPlayerStats(stats)
+                local espGui = espContainer:FindFirstChild(player.Name)
+                if not espGui then
+                    createBillboard(head, player.Name, espContainer)
+                    espGui = espContainer:FindFirstChild(player.Name)
+                else
+                    espGui.Adornee = head
+                    local label, Arrow_Label = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                    if label then
+                        local distance_Lp = Sround((root.Position - LPR.Position).Magnitude, 1)
+                        label.Text = string.format("Name: %s • Studs: %d", player.Name, distance_Lp)
+                        label.TextColor3 = PlayerStats
+                    end
+                    if Arrow_Label then
+                        Arrow_Label.TextColor3 = PlayerStats
+                    end
+                end
+                local hl = char:FindFirstChild("S_Highlight")
+                if not hl then
+                    applyHighlight(char)
+                    hl = char:FindFirstChild("S_Highlight")
+                end
+                if hl then
+                    hl.FillColor = PlayerStats
+                end
+            end
+        end
+    end
+    local function startESP()
+        if espConnection then return end
+        espConnection = SRunService.RenderStepped:Connect(function()
+            if not Genv.SHub.Toggle.PEspEnable then
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
+            end
+            pcall(updateESP)
+        end)
+    end
+    if Genv.SHub.Toggle.PEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
+end})
+SFTab.Main:AddToggle("EspComputerToggle", {Title = "Esp Computer", Description = "Enable/Disable Esp Computer", Default = false, Callback = function(v)
+    --> created by Artsynia <--
+    Genv.SHub.Toggle.PCCEspEnable = v
+    local espConnection
+    local espContainer = getSafeParent("Computer")
+    local function clearESP()
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
+        local Map = GetCurrentMap()
+        if not Map then return end
+        for _, o in pairs(Map:GetChildren()) do
+            if o.Name == "ComputerTable" then
+                local hl = o:FindFirstChild("S_Highlight", true)
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+    local function GetComputerColor(screen)
+        if not screen or not screen:IsA("BasePart") then
+            return Color3.fromRGB(255, 255, 0)
+        end
+        return screen.Color
+    end
+    local function updateESP()
+        local map = GetCurrentMap()
+        if not map then clearESP() return end
+        for _, o in pairs(map:GetChildren()) do
+            if o.Name == "ComputerTable" then
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local screen = o:FindFirstChild("Screen")
+            local espColor = GetComputerColor(screen)
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
+            end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("Computer • %d Studs", dist)
+                    label.TextColor3 = espColor
+                end
+                if arrow then
+                    arrow.TextColor3 = espColor
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = espColor
+            end
+         end
+       end
+    end
+    local function startESP()
+        if espConnection then return end
+        espConnection = SRunService.RenderStepped:Connect(function()
+            if not Genv.SHub.Toggle.PCCEspEnable then
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
+            end
+            pcall(updateESP)
+        end)
+    end
+    if Genv.SHub.Toggle.PCCEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
+end})
+SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "Esp FreezePod", Description = "Enable/Disable Esp FreezePod", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.FreezePodEspEnable = v
+    local espConnection
+    local color = Color3.fromRGB(0, 0, 245)
+    local espContainer = getSafeParent("FreezePod")
+    local function clearESP()
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
+        local Map = GetCurrentMap()
+        if not Map then return end
+        for _, o in pairs(Map:GetChildren()) do
+            if o.Name == "FreezePod" then
+                local hl = o:FindFirstChild("S_Highlight", true)
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+    local function updateESP()
+        local map = GetCurrentMap()
+        if not map then clearESP() return end
+        for _, o in pairs(map:GetChildren()) do
+            if o.Name == "FreezePod" then
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
+            end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("FreezePod • %d Studs", dist)
+                    label.TextColor3 = color
+                end
+                if arrow then
+                    arrow.TextColor3 = color
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = color
+            end
+         end
+       end
+    end
+    local function startESP()
+        if espConnection then return end
+        espConnection = SRunService.RenderStepped:Connect(function()
+            if not Genv.SHub.Toggle.FreezePodEspEnable then
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
+            end
+            pcall(updateESP)
+        end)
+    end
+    if Genv.SHub.Toggle.FreezePodEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
+end})
+SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "Esp ExitDoor", Description = "Enable/Disable Esp ExitDoor", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.ExitDoorEspEnable = v
+    local espConnection
+    local espContainer = getSafeParent("ExitDoor")
+    local function clearESP()
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
+        local Map = GetCurrentMap()
+        if not Map then return end
+        for _, o in pairs(Map:GetChildren()) do
+            if o.Name == "ExitDoor" then
+                local hl = o:FindFirstChild("S_Highlight", true)
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+    local function FindColor(part)
+        if not part or not part:IsA("BasePart") then
+            return Color3.fromRGB(255, 255, 0)
+        end
+        return part.Color
+    end
+    local function updateESP()
+        local map = GetCurrentMap()
+        if not map then clearESP() return end
+        for _, o in pairs(map:GetChildren()) do
+            if o.Name == "ExitDoor" then
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local color = FindColor(o:FindFirstChild("Light"))
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
+            end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("ExitDoor • %d Studs", dist)
+                    label.TextColor3 = color
+                end
+                if arrow then
+                    arrow.TextColor3 = color
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = color
+            end
+         end
+       end
+    end
+    local function startESP()
+        if espConnection then return end
+        espConnection = SRunService.RenderStepped:Connect(function()
+            if not Genv.SHub.Toggle.ExitDoorEspEnable then
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
+            end
+            pcall(updateESP)
+        end)
+    end
+    if Genv.SHub.Toggle.ExitDoorEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
+end})
+SFTab.Main:AddSection "Beast"
+-------------------------------------------------------
+--> created by fxengif <--
+Genv.SHub.WPlr = Genv.SHub.WPlr or {}
+local function MapToArray(map)
+    local t = {}
+    for n, v in pairs(map) do
+        if v then insert(t, n) end
+    end
+    return t
+end
+local function IsWhilstPlayer(p)
+    return Genv.SHub.WPlr[p]
+end
+do
+    local this = SFTab.Main:CreateDropdown("WhilstPlayer_Dropdown", {Title = "Whilst Player", Description = "Select Player to Add Whilst", Values = GetPlayerList(true), Multi = true, Default = MapToArray(Genv.SHub.WPlr), Callback = function(t_select)
+         -- comment by fxengif : >> {this = boolean?, ...}
+         Genv.SHub.WPlr = t_select
+    end})
+    local function updthis_Dropdown()
+        this:SetValues(GetPlayerList(true))
+    end
+    Genv.SHub.TaskSignal.PAdded = SPlayers.PlayerAdded:Connect(updthis_Dropdown)
+    Genv.SHub.TaskSignal.PRemoving = SPlayers.PlayerRemoving:Connect(function(p)
+        Genv.SHub.WPlr[p.Name] = nil
+        updthis_Dropdown()
+    end)
+end
+-------------------------------------------------------
+SFTab.Main:AddSlider("SliderAura", {Title = "Set Hit Aura Range", Description = "Set Range of Hit Aura [Beast]", Default = 10, Min = 5, Max = 15, Rounding = 1, Callback = function(v)
+   Genv.SHub.HitAuraRange = ToNumV(v)
+end})
+SFTab.Main:AddToggle("AuraToggle", {Title = "Hit Aura", Description = "Enable Hit Aura [Beast]", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.HitAura = v
+    while Genv.SHub.Toggle.HitAura and task.wait(0.15) do
+        local LHammerEvent = LPC:FindFirstChild("HammerEvent", true)
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and not IsWhilstPlayer(p.Name) then
+                local Stats = p:FindFirstChild("TempPlayerStatsModule")
+                if not Stats then continue end
+                local PisRagdoll, PisCaptured = Stats:FindFirstChild("Ragdoll"), Stats:FindFirstChild("Captured")
+                if not (PisRagdoll and PisCaptured) then continue end
+                if not (PisRagdoll.Value or PisCaptured.Value) then
+                    local root = findroot_or(p.Character)
+                    if root and LPC and LPR and LHammerEvent then
+                        if (root.Position - LPR.Position).Magnitude <= Genv.SHub.HitAuraRange then
+                            LHammerEvent:FireServer("HammerHit", root)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end})
+SFTab.Main:AddSlider("SliderTie", {Title = "Set Auto Tie Range", Description = "Set Range of Auto Tie [Beast]", Default = 5, Min = 5, Max = 100, Rounding = 1, Callback = function(v)
+   Genv.SHub.TiePlayerRange = ToNumV(v)
+end})
+SFTab.Main:AddToggle("AutoTieToggle", {Title = "Auto Tie", Description = "Enable Auto Tie Player [Beast]", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.AutoTie = v
+    while Genv.SHub.Toggle.AutoTie and task.wait(0.15) do
+        local LHammerEvent = LPC:FindFirstChild("HammerEvent", true)
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and not IsWhilstPlayer(p.Name) then
+                local Stats = p:FindFirstChild("TempPlayerStatsModule")
+                if not Stats then continue end
+                local PisRagdoll, PisCaptured = Stats:FindFirstChild("Ragdoll"), Stats:FindFirstChild("Captured")
+                if not (PisRagdoll and PisCaptured) then continue end
+                if (PisRagdoll.Value and not PisCaptured.Value) then
+                    local root = findroot_or(p.Character)
+                    if root and LPC and LPR and LHammerEvent then
+                        if (root.Position - LPR.Position).Magnitude <= Genv.SHub.TiePlayerRange then
+                            local pos = (c_type("Vector3", root.Position, true) and root.Position) or Vector3.zero
+                            LHammerEvent:FireServer("HammerTieUp", root, pos)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end})
+do SFTab.Main:AddSection "In-Game"
+    local function hook__namecall()
+        if not (getnamecallmethod and checkcaller) then return end
+        local mt, towriteIT = getrawmetatable and getrawmetatable(ugc) or debug.getmetatable and debug.getmetatable(ugc), (setreadonly or set_readonly) or (makewriteable or make_writeable)
+        local old_namecall
+        local function hook_namecall(self, ...)
+            local args = {...}
+            if Genv.SHub.Toggle.Antitaskfailed and not checkcaller() and getnamecallmethod() == "FireServer" and self == RemoteEvent then
+                if args[1] == "SetPlayerMinigameResult" then
+                    args[2] = true
+                end
+            end
+            return old_namecall(self, unpack(args))
+        end
+        if hookmetamethod then
+            old_namecall = hookmetamethod(ugc, "__namecall", newcclosure(hook_namecall))
+        elseif mt and (pcall(towriteIT, mt, false)) then
+            old_namecall = mt.__namecall
+            mt.__namecall = newcclosure(hook_namecall)
+        end
+        return old_namecall ~= nil
+    end
+    local is_namecall_hooked = hook__namecall()
+    SFTab.Main:AddToggle("Notaskfailed_Toggle", {Title = "No Computer hack failed", Description = "never error whenever you trying to hack a computer", Default = false, Callback = function(v)
+        --> created by fxengif <--
+        Genv.SHub.Toggle.Antitaskfailed = v
+        while (not is_namecall_hooked and Genv.SHub.Toggle.Antitaskfailed) and task.wait(.1) do
+            RemoteEvent:FireServer("SetPlayerMinigameResult", true)
+        end
+    end})
+    SFTab.Main:AddToggle("AutoHelp_CapturedPlr_SilentToggle", {Title = "Auto help Captured Player", Description = "silent mode (no teleport, just help silently)", Default = false, Callback = function(v)
+        --> created by Artsynia <--
+        Genv.SHub.Toggle.AutoHelpCP_silent = v
+        local map = GetCurrentMap()
+        local Stats_LP = LP:FindFirstChild("TempPlayerStatsModule")
+        local Local_H = Stats_LP and Stats_LP:FindFirstChild("Health")
+        local Local_R = Stats_LP and Stats_LP:FindFirstChild("Ragdoll")
+        local Local_C = Stats_LP and Stats_LP:FindFirstChild("Captured")
+        local function CapturedFreezePod(cmap)
+            if not (cmap and c_type('table', cmap)) then return end
+            for _, o in pairs(cmap) do
+                if o.Name ~= "FreezePod" then continue end
+                local PodTrigger = o:FindFirstChild("PodTrigger", true)
+                if PodTrigger then
+                    local CapturedTorso = PodTrigger:FindFirstChild("CapturedTorso")
+                    local Event = PodTrigger:FindFirstChild("Event")
+                    if CapturedTorso and Event and CapturedTorso:IsA("ObjectValue") and CapturedTorso.Value then
+                        return Event
+                    end
+                end
+            end
+        end
+        while Genv.SHub.Toggle.AutoHelpCP_silent and task.wait(0.05) do
+            if not (Local_H and Local_R and Local_C) then continue end
+            if Local_H.Value <= 0 or Local_R.Value or Local_C.Value then continue end
+            if not map then
+                map = GetCurrentMap()
+                continue
+            end
+            for _, p in pairs(SPlayers:GetPlayers()) do
+                if p == LP then continue end
+                local Stats = p:FindFirstChild("TempPlayerStatsModule")
+                local Captured = Stats and Stats:FindFirstChild("Captured")
+                if not (Captured and Captured:IsA("BoolValue") and Captured.Value) then continue end
+                local event = CapturedFreezePod(map:GetChildren())
+                if not event then continue end
+                repeat
+                    task.wait(0.05)
+                    RemoteEvent:FireServer("Input", "Trigger", true, event)
+                    RemoteEvent:FireServer("Input", "Action", true)
+                until not (Captured.Value and Genv.SHub.Toggle.AutoHelpCP_silent)
+                break
+            end
+        end
+    end})
+    SFTab.Main:AddToggle("AutoHelp_CapturedPlrToggle", {Title = "Auto help Captured Player", Description = "Teleport Version", Default = false, Callback = function(v)
+        --> created by Artsynia & fxengif <--
+        Genv.SHub.Toggle.AutoHelpCP = v
+        local function DoHelpCFrame(root)
+            return root.CFrame * CFrame.new(0, -4.5, 0) * CFrame.Angles(math.rad(90), 0, 0)
+        end
+        local oldCFrame, helping = nil, false
+        local Stats_LP = LP:FindFirstChild("TempPlayerStatsModule")
+        local Local_H = Stats_LP and Stats_LP:FindFirstChild("Health")
+        local Local_R = Stats_LP and Stats_LP:FindFirstChild("Ragdoll")
+        local Local_C = Stats_LP and Stats_LP:FindFirstChild("Captured")
+        while Genv.SHub.Toggle.AutoHelpCP and task.wait(0.05) do
+            if not (LPC and LPR and Local_H and Local_R and Local_C) then continue end
+            if Local_H.Value <= 0 or Local_R.Value or Local_C.Value then continue end
+            for _, p in pairs(SPlayers:GetPlayers()) do
+                if p == LP or helping then continue end
+                local Stats = p:FindFirstChild("TempPlayerStatsModule")
+                local Captured = Stats and Stats:FindFirstChild("Captured")
+                if not (Captured and Captured:IsA("BoolValue") and Captured.Value) then continue end
+                local root = findroot_or(p.Character)
+                if not root then continue end
+                helping = true
+                oldCFrame = oldCFrame or LPR.CFrame
+                LPR.CFrame = DoHelpCFrame(root)
+                repeat
+                    task.wait(0.05)
+                    LPR.CFrame = DoHelpCFrame(root)
+                    RemoteEvent:FireServer("Input", "Action", true)
+                until not (Captured.Value and Genv.SHub.Toggle.AutoHelpCP) or (Local_R.Value or Local_C.Value or Local_H.Value <= 0)
+                if oldCFrame and LPC then LPC:PivotTo(oldCFrame) end
+                oldCFrame, helping = nil, false
+                break
+            end
+        end
+    end})
+end
+SFTab.Main:AddSection "Other"
+SFTab.Main:AddToggle("AntiFlingToggle", {Title = "Anti Fling", Description = "Noclip Player", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.AntiFling = v
+    local function SAntiFling()
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                for _, c in pairs(p.Character:GetDescendants()) do
+                    if c:IsA "BasePart" then
+                        if c.CanCollide then
+                            c.CanCollide = false
+                        elseif not (c.CanCollide or Genv.SHub.Toggle.AntiFling) then
+                            c.CanCollide = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    while Genv.SHub.Toggle.AntiFling and SRunService.Heartbeat:Wait() do SAntiFling() end
+end})
+SFTab.Main:AddToggle("TFlingToggle", {Title = "Touch Fling", Description = "let's you fling player by touching them", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.TouchFling = v
+    local vel, movel = nil, 0.05
+    while Genv.SHub.Toggle.TouchFling do
+        SRunService.Heartbeat:Wait()
+        vel = LPR.Velocity;LPR.Velocity = (vel * 9e8) + Vector3.new(0, 9e8, 0)
+        SRunService.RenderStepped:Wait()
+        if LPC and LPR then LPR.Velocity = vel end
+        SRunService.Stepped:Wait()
+        if LPC and LPR then
+            LPR.Velocity,movel = vel + Vector3.new(0, movel, 0),movel * -1
+        end
+    end
+end})
+SFTab.Local:AddSection "Camera"
+SFTab.Local:AddToggle("NoclipCameraToggle", {Title = "Noclip Camera", Description = "Make Camera Can see through the wall", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.CamNoclip = v
+    while Genv.SHub.Toggle.CamNoclip and task.wait(.1) do
+        if (LP.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam) then
+            LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+        end
+    end
+    if not Genv.SHub.Toggle.CamNoclip then
+       LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
+    end
+end})
+SFTab.Local:AddToggle("CameraDModeToggle", {Title = "Change CameraMode to default", Description = "Disable first person Camera", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.CamDMode = v
+    while Genv.SHub.Toggle.CamDMode and task.wait(.1) do
+        if (LP.CameraMode ~= Enum.CameraMode.Classic) then
+            LP.CameraMode = Enum.CameraMode.Classic
+        end
+    end
+end})
+SFTab.Local:AddInput("Input_CamMaxZoom", {Title = "Camera Max Zoom", Default = "", Placeholder = "Set Max Zoom Distance", Numeric = true, Finished = false, Callback = function(v)
+    Genv.SHub.CamMaxZoomDis = ToNumV(v)
+    LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis
+end})
+SFTab.Local:AddToggle("CameraZoomDisToggle", {Title = "Change Camera Max Zoom Distance", Description = "Enabled Auto Set Camera Max Zoom distance", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.CamMaxZoom = v
+    while Genv.SHub.Toggle.CamMaxZoom and task.wait(.1) do
+        if (LP.CameraMaxZoomDistance ~= Genv.SHub.CamMaxZoomDis) then
+            LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis
+        end
+    end
+end})
+SFTab.Local:AddSection "Local"
+SFTab.Local:AddToggle("FBToggle", {Title = "Full Bright", Description = "Enable Full Bright to see anything easily", Default = false, Callback = function(v)
+    --> created by Artsynia <--
+    Genv.SHub.Toggle.FullBright = v
+    local function saveLighting()
+        Genv.SHub.FB_Original = {
+            Brightness = SLighting.Brightness,
+            ClockTime = SLighting.ClockTime,
+            FogEnd = SLighting.FogEnd,
+            FogStart = SLighting.FogStart,
+            GlobalShadows = SLighting.GlobalShadows,
+            OutdoorAmbient = SLighting.OutdoorAmbient,
+            Ambient = SLighting.Ambient
+        }
+        local atm = SLighting:FindFirstChildOfClass("Atmosphere")
+        if atm then
+            Genv.SHub.FB_Original.AtmosphereDensity = atm.Density
+        end
+    end
+    local function applyFullBright()
+        local atm = SLighting:FindFirstChildOfClass("Atmosphere")
+        if atm then
+            atm.Density = 0
+        end
+        SLighting.Brightness = 1.5
+        SLighting.ClockTime = 14
+        SLighting.FogEnd = 100000
+        SLighting.FogStart = 0
+        SLighting.GlobalShadows = false
+        SLighting.OutdoorAmbient = Color3.fromRGB(100, 100, 100)
+        SLighting.Ambient = Color3.fromRGB(80, 80, 80)
+    end
+    local function restoreLighting()
+        if not Genv.SHub.FB_Original then return end
+        for prop, value in pairs(Genv.SHub.FB_Original) do
+            if prop == "AtmosphereDensity" then
+                local atm = SLighting:FindFirstChildOfClass("Atmosphere")
+                if atm then
+                    atm.Density = value
+                end
+            else
+                SLighting[prop] = value
+            end
+        end
+    end
+    if Genv.SHub.Toggle.FullBright then
+        saveLighting()
+        while Genv.SHub.Toggle.FullBright and task.wait() do applyFullBright() end
+    else
+        task.wait(.25); restoreLighting()
+    end
+end})
+SFTab.Local:AddInput("Input_TpwalkSpeed", {Title = "Custom TP Walk Speed", Default = "", Placeholder = "Set TP Walk Speed", Numeric = true, Finished = false, Callback = function(v)
+    Genv.SHub.tpwalkSpeed = ToNumV(v)
+end})
+SFTab.Local:AddToggle("TPWalk_Toggle", {Title = "TP Walk", Description = "walking fast just like walkspeed", Default = false, Callback = function(v)
+    --> created by Artsynia <--
+    Genv.SHub.Toggle.tpwalk = v
+    while Genv.SHub.Toggle.tpwalk do
+        local dt = SRunService.Heartbeat:Wait()
+        if not (LPC and LPH) then continue end
+        local move = LPH.MoveDirection
+        if move.Magnitude > 0 then
+            LPC:TranslateBy(move * (Genv.SHub.tpwalkSpeed or 1) * dt * 10)
+        end
+    end
+end})
+SFTab.Local:AddToggle("InfJumpToggle", {Title = "Infinity Jump", Description = "Enable/Disable Infinity Jump", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.InfJump = v
+end})
+Genv.SHub.TaskSignal.InfJump = SUis.JumpRequest:Connect(function()
+    if Genv.SHub.Toggle.InfJump and LPH then
+        LPH:ChangeState "Jumping"
+    end
+end)
+SFTab.Local:AddToggle("NoclipToggle", {Title = "Noclip", Description = "Enable/Disable Noclip", Default = false, Callback = function(v)
+    --> created by fxengif <--
+    Genv.SHub.Toggle.Noclip = v
+    local function Noclip()
+        for _, c in pairs(LPC:GetDescendants()) do 
+            if c:IsA "BasePart" then
+                if c.CanCollide then
+                    c.CanCollide = false
+                elseif not (c.CanCollide or Genv.SHub.Toggle.Noclip) then
+                    c.CanCollide = true
+                    break
+                end
+            end
+        end
+    end
+    while Genv.SHub.Toggle.Noclip and SRunService.Heartbeat:Wait() do Noclip() end
+end})
+do SFTab.Anti_Ify:AddSection "Notification"
+    SFTab.Anti_Ify:AddToggle("NotifyAdminToggle", {Title = "Notification Admin Join", Description = "Show Notification when Mod/Admin Join This Server", Default = true, Callback = function(b)
+        --> created by Artsynia <--
+        Genv.SHub.Notify.NotifyAdmin = b
+        local creId, cretype = ugc.CreatorId, ugc.CreatorType
+        while Genv.SHub.Notify.NotifyAdmin and task.wait(2.5) do
+            for _, p in pairs(SPlayers:GetPlayers()) do
+                if cretype == Enum.CreatorType.Group then
+                    pcall(function() -- comment by Artsynia : sometime when request 'GetRankInGroup/GetRoleInGroup' failed (503 status), that why i use pcall
+                        local rank = p:GetRankInGroup(creId)
+                        if rank >= 2 then
+                            local role = p:GetRoleInGroup(creId)
+                            Fluent:Notify{Title = p.Name .. " has join!", Content = "Role : " .. role .. ", Rank : " .. rank, Icon = "user-check", Duration = 1.5}
+                        end
+                    end)
+                elseif cretype == Enum.CreatorType.User and p.UserId == creId then
+                    Fluent:Notify{Title = p.Name .. " has join!", Content = "Role : Game Owner", Icon = "user-check", Duration = 1.5}
+                end
+            end
+        end
+    end})
+    SFTab.Anti_Ify:AddSection "Anti"
+    local VirtualUser = FindServiceTery "VirtualUser"
+    local anti_afkconnection
+    SFTab.Anti_Ify:AddToggle("AntiAfk_Toggle", {Title = "Anti afk", Description = "there no description cause you already understand", Default = false, Callback = function(v)
+        Genv.SHub.Toggle.Antiafk = v
+        if v then
+            if not anti_afkconnection then
+                anti_afkconnection = LP.Idled:Connect(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.zero)
+                end)
+            end
+        else
+            if anti_afkconnection then
+                anti_afkconnection:Disconnect()
+                anti_afkconnection = nil
+            end
+        end
+    end})
+    SFTab.Anti_Ify:AddToggle("AntiRagdollToggle", {Title = "Anti Ragdoll", Description = "No Ragdoll onLocal", Default = false, Callback = function(v)
+        --> created by fxengif <--
+        Genv.SHub.Toggle.AntiRagdoll = v
+        local function ChangeState(bool)
+            LPH:SetStateEnabled(Enum.HumanoidStateType.Physics, bool)
+            LPH:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, bool)
+            LPH:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, bool)
+        end
+        while Genv.SHub.Toggle.AntiRagdoll and task.wait() do
+            pcall(function()
+                ChangeState(not Genv.SHub.Toggle.AntiRagdoll)
+                local Stats = LP:FindFirstChild("TempPlayerStatsModule")
+                local Ragdoll = Stats:FindFirstChild("Ragdoll")
+                if Ragdoll and (Ragdoll:IsA("BoolValue") and Ragdoll.Value) then
+                    repeat task.wait()
+                        LPH:ChangeState(6); LPH:ChangeState(8)
+                    until LPH:GetState() == Enum.HumanoidStateType.Running
+                end
+            end)
+        end
+    end})
+end
+--------------------------------------------------------------
+--> created by Artsynia <--
+do SFTab.Game_Rg:AddSection "Game • Status"
+    local function BoolToWord(v: boolean): string
+        return v and "Yes" or "No" -- comment by fxengif : at least i know that was v ? "Yes" : "No"
+    end
+    local GameStatus_PG, this
+    local function RefreshStatus()
+        local isActive = find_instance(SReplicatedStorage, "IsGameActive")
+        local strActive = BoolToWord(isActive and isActive.Value)
+        local mapName = t_str(GetCurrentMap() or "None")
+        local content = string.format("GameActive: %s\nCurrentMap: %s", strActive, mapName)
+        if GameStatus_PG then
+            GameStatus_PG:SetContent(content)
+        end
+    end
+    this = SFTab.Game_Rg:AddToggle("AutoRefreshStatusToggle", {Title = "Auto Refresh", Description = "Refresh Game Status [RealTime]", Default = true})
+    GameStatus_PG = SFTab.Game_Rg:CreateParagraph("GameStatus_Paragraph", {Title = "Game Status"})
+    RefreshStatus()
+    this:OnChanged(function(v)
+        Genv.SHub.Toggle.AutoRefStatus = v
+        while Genv.SHub.Toggle.AutoRefStatus and task.wait(.1) do RefreshStatus() end
+    end)
+end
+-- // <𝟹 \\ --
+------------------------------------------------------------------
+SFTab.Game_Rg:AddSection "Ragebaiting Beast"
+-- // this function created by fxengif \\ --
+local function GetCurrentBeastHEvent(needed)
+    for _, p in pairs(SPlayers:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local c = p.Character
+            if c:FindFirstChild "Hammer" then
+                return not needed and find_instance(c, "HammerEvent") or c
+            end
+        end
+    end
+end
+-- // this function created by fxengif \\ --
+local function GetCurrentBeastPEvent(needed)
+    for _, p in pairs(SPlayers:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local c = p.Character
+            if c:FindFirstChild "BeastPowers" then
+                return not needed and find_instance(c, "PowersEvent") or c
+            end
+        end
+    end
+end
+SFTab.Game_Rg:AddToggle("RGSlow_BeastToggle", {Title = "Slow Beast", Description = "make beast walk slowly", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.Rg_SlowBt = v
+    while Genv.SHub.Toggle.Rg_SlowBt and task.wait(0.05) do
+        local event = GetCurrentBeastPEvent()
+        if event then event:FireServer "Jumped" end
+    end
+end})
+SFTab.Game_Rg:AddToggle("RGUnTie_BeastToggle", {Title = "Beast untie player", Description = "making beast untie player instantly", Default = false, Callback = function(v)
+    Genv.SHub.Toggle.Rg_distieBt = v
+    while Genv.SHub.Toggle.Rg_distieBt and task.wait(0.05) do
+        local event = GetCurrentBeastHEvent()
+        if event then event:FireServer("HammerClick", true) end
+    end
+end})
+-------------------------------------------------------
+--> created by Artsynia <--
+do SFTab.Content:AddSection "Record/Showcase"
+    local function GetCurrentUiPlrFrame(lyLv: boolean): any?
+        local plrf = LPGui:FindFirstChild("PlayerNamesFrame", true)
+        if not plrf then return nil end
+        for _, fm in pairs(plrf:GetChildren()) do
+            if fm:IsA("Frame") and fm.Name:lower():find(LP.Name:lower(), 1, true) then
+                local level, name
+                for _, lbl in pairs(fm:GetChildren()) do
+                    if not lbl:IsA("TextLabel") then continue end
+                    local num = t_num(lbl.Text)
+                    if num then
+                        level = lbl
+                    else
+                        name = lbl
+                    end
+                end
+                return lyLv and level or name
+            end
+        end
+    end
+    Genv.SHub.BarsTL = Genv.SHub.BarsTL
+    local function GetCurrentUiPlrBars(): any?
+        local plrf = LPGui:FindFirstChild("StatusBars", true)
+        if not plrf then return nil end
+        for _, tl in pairs(plrf:GetChildren()) do
+            if tl:IsA("TextLabel") and tl.Text:lower():find(LP.Name:lower(), 1, true) then
+                Genv.SHub.BarsTL = tl
+            end
+        end
+        return Genv.SHub.BarsTL
+    end
+    Genv.SHub.CustomName = ''
+    Genv.SHub.CustomLevel = 100
+    local lv = GetCurrentUiPlrFrame(true)
+    local oldlvl = lv and lv.Text or 1
+    SFTab.Content:AddInput("Input_CustomName", {Title = "Custom Name", Default = "", Placeholder = "", Numeric = false, Finished = false, Callback = function(str)
+        Genv.SHub.CustomName = t_str(str)
+    end})
+    SFTab.Content:AddInput("Input_CustomLevel", {Title = "Custom Level", Default = "", Placeholder = "", Numeric = true, Finished = false, Callback = function(n)
+        Genv.SHub.CustomLevel = ToNumV(n)
+    end})
+    SFTab.Content:CreateToggle("EnableHide_ListName_Toggle", {Title = "Enabled Change Text Playerlist (Ui)", Description = "useful when record/showcase", Default = false, Callback = function(v) 
+        Genv.SHub.Toggle.HideListName = v
+        local name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
+        while name and lvl and not Genv.SHub.Toggle.HideListName and task.wait(.1) do
+            name.Text = LP.Name; lvl.Text = oldlvl; task.wait(.2); break
+        end
+        while Genv.SHub.Toggle.HideListName and task.wait(0.01) do
+            if not LPGui then continue end
+            name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
+            if name then
+                name.Text = Genv.SHub.CustomName
+            end
+            if lvl then
+                lvl.Text = Genv.SHub.CustomLevel
+            end
+        end
+    end})
+    SFTab.Content:CreateToggle("EnableHide_Bars_Toggle", {Title = "Enabled Change Text Bars (Ui)", Description = "useful when record/showcase", Default = false, Callback = function(v) 
+        Genv.SHub.Toggle.HideBars = v
+        local name = GetCurrentUiPlrBars()
+        while name and not Genv.SHub.Toggle.HideBars and task.wait(.1) do
+            name.Text = LP.Name; task.wait(.2); break
+        end
+        while Genv.SHub.Toggle.HideBars and task.wait(0.01) do
+            if not LPGui then continue end
+            name = GetCurrentUiPlrBars()
+            if name then
+                name.Text = Genv.SHub.CustomName
+            end
+        end
+    end})
+end
+-------------------------------------------------------
+SFTab.v_cre:AddSection "Project"
+SFTab.v_cre:AddParagraph("Project_Paragraph", {Title = `SilentSet  : {GameName}`, Content = `Version Beta • {this.Version}`})
+SFTab.v_cre:AddSection "Credit"
+SFTab.v_cre:AddParagraph("Credit_Paragraph", {Title = "Script • Creator", Content = "Creator of This Script: atk8774, ACCUSE\n\nCode Made By Atk Ui By ACCUSE\n\nSilent Set On Top."})
+---------------------[-OTHER-]---------------------
+SFTab.Other:AddSection "Current Game Information"
+SFTab.Other:AddParagraph("Game_Info_Paragraph", {Title = "Info", Content = `Game VM Version: {VM_Version}`})
+-------------------------------------------------------
+--> created by fxengif <--
+do SFTab.Other:AddSection "Executor Environment"
+    local exec = c_caller("function", identifyexecutor or getexecutorname, '', "Error")
+    local function list_ev()
+        if Genv == _G then return end
+        local e, re = {}, 0
+        for n, a in pairs(Genv) do
+            if t_str(n):lower():find("shub", 1, true) then continue end
+            re=re+1;insert(e, ("> %d | %s • type : %s"):format(re, t_str(n), type(a)))
+        end
+        return table.concat(e, '\n'), re
+    end
+    local this
+    local function refresh()
+        if not this then return end
+        local result, overall = list_ev()
+        this:SetContent(`see what your executor environment has:\n> Executor : {exec}\n> Overall : {overall}\n\n{result}`)
+    end
+    SFTab.Other:CreateButton {
+        Title = "Refresh Environment",
+        Description = "Refresh List env",
+        Callback = function()
+            Window:Dialog {
+                Title = "Confirm Refresh",
+                Content = "Are You Sure, You want to refresh environment",
+                Buttons = {
+                    {
+                        Title = "Confirm",
+                        Callback = refresh
+                    },
+                    {Title = "Cancel"}
+                }
+            }
+        end
+    }
+    this = SFTab.Other:AddParagraph("Exec_Env_Paragraph", {Title = "Environment"})
+end
+-------------------------------------------------------
+end
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder'SourceOnce'
+SaveManager:SetFolder'SourceOnce/FTF'
+InterfaceManager:BuildInterfaceSection(SFTab.Settings)
+SaveManager:BuildConfigSection(SFTab.Settings)
+SaveManager:LoadAutoloadConfig()
+Window:SelectTab(1)
+-- comment by fxengif : our toggle button for fluent UI library (mobile)
+if GetIsOnMobile() then
+    local CurrentUi = GetHiddenGui()
+    if CurrentUi:FindFirstChild "ToggleShubUi" then CurrentUi.ToggleShubUi:Destroy() end
+    local NormalSize, HoverSize = UDim2.fromOffset(40, 40), UDim2.fromOffset(45, 45)
+    local ScreenGui = Instance.new "ScreenGui"
+    local ImageButton = Instance.new "ImageButton"
+    local UICorner = Instance.new("UICorner", ImageButton)
+    local UIStroke = Instance.new("UIStroke", ImageButton)
+    local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint", ImageButton)
+    local UIGradient = Instance.new("UIGradient", ImageButton)
+    UIStroke.Color = Color3.new(0, 0, 0)
+    UIStroke.Thickness = 4
+    UIStroke.Transparency = 0.30
+    UIAspectRatioConstraint.AspectRatio = 1.25
+    ScreenGui.Name = "ToggleShubUi"
+    ScreenGui.Parent = CurrentUi
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ImageButton.Parent = ScreenGui
+    ImageButton.BorderColor3 = Color3.fromRGB(255, 185, 115)
+    ImageButton.BackgroundTransparency = 0.35
+    ImageButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    ImageButton.Position = UDim2.new(0.1, 0, 0.1, 0)
+    ImageButton.Size = NormalSize
+    ImageButton.Image = "rbxassetid://10709810463"
+    ImageButton.Draggable = true
+    UIGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.new(0.3, 0.3, 0.3)),ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1))}
+    UIGradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0.1), NumberSequenceKeypoint.new(1, 0)}
+    local TweenService = FindServiceTery "TweenService"
+    local function rotateGradient()
+        UIGradient.Rotation = 0
+        local tween = TweenService:Create(UIGradient, TweenInfo.new(4, Enum.EasingStyle.Linear), {Rotation = 360})
+        tween:Play()
+        tween.Completed:Once(rotateGradient)
+    end
+    rotateGradient()
+    ImageButton.MouseButton1Click:Connect(function() local rootFV=Window.Root;rootFV.Visible = not rootFV.Visible end)
+    ImageButton.MouseEnter:Connect(function()
+        TweenService:Create(ImageButton, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = HoverSize}):Play()
+        TweenService:Create(UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Thickness = 6}):Play()
+    end)
+    ImageButton.MouseLeave:Connect(function()
+        TweenService:Create(ImageButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = NormalSize}):Play()
+        TweenService:Create(UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Thickness = 4}):Play()
+    end)
+end
+if Window.HideButton then Window.HideButton.Visible = false end
+tracery_notif("Successfully Loaded", "Thanks for Using This script!", 5)
