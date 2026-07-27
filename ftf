@@ -2507,7 +2507,7 @@ FlightGroup:AddToggle("WalkSpeed", { Text = "Walk Speed", Default = false, Callb
         libraryNotify("Walk Speed OFF", "error")
     end
 end })
-FlightGroup:AddSlider("WalkSpeedValue", { Text = "Walk Speed Value", Default = 50, Min = 16, Max = 200, Rounding = 0, Callback = function(Value) 
+FlightGroup:AddSlider("WalkSpeedValue", { Text = "Walk Speed Value", Default = 50, Min = 16, Max = 1000, Rounding = 0, Callback = function(Value) 
     moveSettings.WalkSpeed = Value
     if moveSettings.WalkSpeedEnabled then
         local humanoid = S.LocalPlayer.Character and S.LocalPlayer.Character:FindFirstChild("Humanoid")
