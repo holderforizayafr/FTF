@@ -619,6 +619,7 @@ local scriptState = {
     FlightEnabled = false, FlightSpeed = 50, AntiLock = false,
     ESP = false, CamlockHighlight = true, AimViewer = false,
     WallbangEnabled = false, AutoStompEnabled = false,
+    AutoReload = false,
 }
 
 -- ===== DESYNC STATE =====
@@ -657,6 +658,9 @@ local keyState = {
 
 -- ===== WALLBANG SPREAD STATE =====
 local wallbangSpreadActive = false
+
+-- ===== AUTO RELOAD =====
+local autoReloadConnection = nil
 
 -- ===== KEYBIND STORAGE =====
 local Keybinds = {
@@ -1612,12 +1616,29 @@ local function applySuperJump()
 end
 local lastTriggerClick = 0
 local function TriggerBot()
-    if not scriptState.TriggerBot then return end; if not scriptState.TargetPlayer then return end
-    local target = scriptState.TargetPlayer; if not target or not target.Character then return end
+    if not scriptState.TriggerBot then return end
+    if not scriptState.TargetPlayer then return end
+    local target = scriptState.TargetPlayer
+    if not target or not target.Character then return end
     if target.Character:FindFirstChild("ForceField") then return end
-    local hum = target.Character:FindFirstChild("Humanoid"); if not hum or hum.Health < 13 or hum:GetState() == Enum.HumanoidStateType.Dead then return end
+    local hum = target.Character:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 or hum:GetState() == Enum.HumanoidStateType.Dead then return end
+    
+    -- Check if target is KO'd (same method as autostomp)
+    local bodyEffects = target.Character:FindFirstChild("BodyEffects")
+    if bodyEffects then
+        local ko = bodyEffects:FindFirstChild("K.O")
+        if ko and ko.Value == true then
+            return -- Don't shoot if KO'd
+        end
+    end
+    
     if tick() - lastTriggerClick < 0.01 then return end
-    pcall(function() S.VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1); task.wait(0.015); S.VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1) end)
+    pcall(function() 
+        S.VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+        task.wait(0.015)
+        S.VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end)
     lastTriggerClick = tick()
 end
 
@@ -2104,7 +2125,62 @@ CombatRight:AddToggle("Spread", { Text = "🎯 SPREAD", Default = false, Callbac
     showNotification("Spread " .. (Value and "ON" or "OFF"), Value and Color3.fromRGB(0,255,100) or Color3.fromRGB(255,100,100))
     libraryNotify("Spread " .. (Value and "ON" or "OFF"), Value and "success" or "error")
 end })
-
+CombatRight:AddToggle("AutoReload", { 
+    Text = "🔄 AUTO RELOAD", 
+    Default = false, 
+    Callback = function(Value) 
+        scriptState.AutoReload = Value
+        if Value then
+            if not autoReloadConnection then
+                autoReloadConnection = S.RunService.Heartbeat:Connect(function()
+                    if not scriptState.AutoReload then return end
+                    
+                    local char = S.LocalPlayer.Character
+                    if not char then return end
+                    
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then return end
+                    
+                    local ammo = tool:FindFirstChild("Ammo")
+                    local ammoValue = -1
+                    if ammo and (ammo:IsA("NumberValue") or ammo:IsA("IntValue")) then
+                        ammoValue = ammo.Value
+                    end
+                    
+                    if ammoValue == 0 then
+                        pcall(function()
+                            S.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                            task.wait(0.05)
+                            S.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                        end)
+                        pcall(function()
+                            S.UserInputService:SetKeyDown(Enum.KeyCode.R)
+                            task.wait(0.05)
+                            S.UserInputService:SetKeyUp(Enum.KeyCode.R)
+                        end)
+                        task.spawn(function()
+                            for i = 1, 3 do
+                                pcall(function()
+                                    S.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                                    task.wait(0.05)
+                                    S.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                                end)
+                                task.wait(0.1)
+                            end
+                        end)
+                    end
+                end)
+            end
+        else
+            if autoReloadConnection then
+                autoReloadConnection:Disconnect()
+                autoReloadConnection = nil
+            end
+        end
+        showNotification("Auto Reload " .. (Value and "ON" or "OFF"), Value and Color3.fromRGB(0,255,100) or Color3.fromRGB(255,100,100))
+        libraryNotify("Auto Reload " .. (Value and "ON" or "OFF"), Value and "success" or "error")
+    end 
+})
 -- AUTO STOMP
 local StompGroup = Tabs.Combat:AddLeftGroupbox("Auto Stomp", "flash")
 StompGroup:AddLabel("⚡ Auto Stomps Ko'd players", true)
