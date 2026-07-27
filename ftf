@@ -1292,19 +1292,20 @@ local function startAntiLock()
 end
 local function stopAntiLock() antiLockRunning = false end
 
--- ===== SPEED =====
+-- ===== SPEED (TOGGLES WALK SPEED) =====
 local function toggleSpeed()
-    scriptState.SpeedEnabled = not scriptState.SpeedEnabled
+    -- Toggle the WalkSpeedEnabled setting from moveSettings
+    moveSettings.WalkSpeedEnabled = not moveSettings.WalkSpeedEnabled
     local humanoid = S.LocalPlayer.Character and S.LocalPlayer.Character:FindFirstChild("Humanoid")
     if humanoid then
-        if scriptState.SpeedEnabled then 
-            humanoid.WalkSpeed = 16 * scriptState.SpeedMultiplier
-            showNotification("🏃 Speed Boost ON", Color3.fromRGB(0, 255, 100))
-            libraryNotify("Speed Boost ON", "success")
+        if moveSettings.WalkSpeedEnabled then 
+            humanoid.WalkSpeed = moveSettings.WalkSpeed
+            showNotification("🏃 Walk Speed ON (" .. moveSettings.WalkSpeed .. ")", Color3.fromRGB(0, 255, 100))
+            libraryNotify("Walk Speed ON (" .. moveSettings.WalkSpeed .. ")", "success")
         else 
             humanoid.WalkSpeed = 16
-            showNotification("🏃 Speed Boost OFF", Color3.fromRGB(255, 100, 100))
-            libraryNotify("Speed Boost OFF", "error")
+            showNotification("🏃 Walk Speed OFF", Color3.fromRGB(255, 100, 100))
+            libraryNotify("Walk Speed OFF", "error")
         end
     end
 end
@@ -2580,13 +2581,12 @@ KeyGroup:AddLabel("🎯 Aim Viewer Target"):AddKeyPicker("AimTargetKey", {
 })
 
 KeyGroup:AddLabel("🏃 Speed Boost"):AddKeyPicker("SpeedKey", { 
-    Text = "Speed Boost", 
+    Text = "Speed Boost (Walk Speed)", 
     Default = "None", 
-    Mode = "Toggle", 
+    Mode = "Press", 
     Blacklisted = {"MB1", "MB2"}, 
-    Callback = function(Value) 
-        Keybinds.SpeedKey = Value
-        if Value then toggleSpeed() end
+    Callback = function() 
+        toggleSpeed() 
     end 
 })
 
