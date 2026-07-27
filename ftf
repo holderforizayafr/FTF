@@ -1710,7 +1710,25 @@ MainBottom:AddButton({ Text = "👍 Rejoin Server", Func = function() showNotifi
 MainBottom:AddButton({ Text = "🔄 Reset Character", Func = function() local char = S.LocalPlayer.Character; if char then local hum = char:FindFirstChildOfClass("Humanoid"); if hum then hum.Health = 0 end end; showNotification("Character reset!", Color3.fromRGB(255, 200, 0)); libraryNotify("Character reset!", "warning") end })
 
 -- ================================================================
--- AUTO ARMOR & AUTO BUY (FIXED - NO 200 ALLOCAT ERROR)
+-- TELEPORTS TAB
+-- ================================================================
+
+-- Item Teleports
+local TeleportsLeft = Tabs.Teleports:AddLeftGroupbox("Item Teleports", "cube")
+local itemNames = {}; for _, item in ipairs(TeleportData.Items) do table.insert(itemNames, item.Name) end
+local selectedItem = TeleportData.Items[1].Name
+TeleportsLeft:AddDropdown("ItemSelection", { Text = "Select Item", Values = itemNames, Default = selectedItem, Callback = function(Value) selectedItem = Value end })
+TeleportsLeft:AddButton({ Text = "🚀 Go To", Func = function() local hrp = S.LocalPlayer.Character and S.LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if not hrp then showNotification("❌ No character!", Color3.fromRGB(255, 100, 100)); return end; for _, item in ipairs(TeleportData.Items) do if item.Name == selectedItem then hrp.CFrame = item.CFrame; showNotification("🚀 Teleported to: " .. selectedItem, Color3.fromRGB(100, 255, 100)); libraryNotify("Teleported to: " .. selectedItem, "success"); return end end end })
+
+-- Location Teleports
+local TeleportsRight = Tabs.Teleports:AddRightGroupbox("Location Teleports", "map")
+local locationNames = {}; for _, loc in ipairs(TeleportData.Locations) do table.insert(locationNames, loc.Name) end
+local selectedLocation = TeleportData.Locations[1].Name
+TeleportsRight:AddDropdown("LocationSelection", { Text = "Select Location", Values = locationNames, Default = selectedLocation, Callback = function(Value) selectedLocation = Value end })
+TeleportsRight:AddButton({ Text = "🚀 Go To", Func = function() local hrp = S.LocalPlayer.Character and S.LocalPlayer.Character:FindFirstChild("HumanoidRootPart"); if not hrp then showNotification("❌ No character!", Color3.fromRGB(255, 100, 100)); return end; for _, loc in ipairs(TeleportData.Locations) do if loc.Name == selectedLocation then hrp.CFrame = loc.CFrame; showNotification("🚀 Teleported to: " .. selectedLocation, Color3.fromRGB(100, 255, 100)); libraryNotify("Teleported to: " .. selectedLocation, "success"); return end end end })
+
+-- ================================================================
+-- AUTO ARMOR & AUTO BUY
 -- ================================================================
 local AutoBuyGroup = Tabs.Teleports:AddLeftGroupbox("Auto Armor & Auto Buy", "shopping-bag")
 
@@ -1776,7 +1794,7 @@ local function getInventoryAmmo(gunName)
 end
 
 -- =========================
--- ULTRA FAST AUTO ARMOR (FIXED - NO 200 ALLOCAT)
+-- ULTRA FAST AUTO ARMOR
 -- =========================
 local ArmorData = {
     ClickDetector = nil,
@@ -1814,7 +1832,6 @@ end
 
 findArmorShopOnce()
 
--- Cached services to reduce locals
 local S2 = {
     LP = S.LocalPlayer,
     RS = S.RunService
